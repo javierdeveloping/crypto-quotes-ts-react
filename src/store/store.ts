@@ -1,52 +1,36 @@
 import { create } from "zustand";
-import { CryptoCurrenciesResponseSchema } from "../schemas/crypto-schema";
-import { CryptoCurrency } from "../types";
+import { devtools } from "zustand/middleware";
+import { CryptoCurrency, Pair,CryptoPrice } from "../types";
+import { emptyPrice, fetchCurrentCryptoPrice, getCryptos } from "../services/CryptoService";
 
 
 type CryptoStore = {
     cryptocurrencies: CryptoCurrency[]
-    fetchCryptos: ()=> Promise<CryptoCurrency[]>
-}
-async function getCryptos(){
-    const url = "https://min-api.cryptocompare.com/data/top/mktcapfull?limit=20&tsym=USD"
-
-    try {
-        // Await the response of the fetch call
-        const response = await fetch(url);
-        
-        // Check if the response was successful
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        
-        // Await the parsing of JSON data
-        const {Data: cryptos} = await response.json();
-        // console.log(cryptos)
-        
-        const result = CryptoCurrenciesResponseSchema.safeParse(cryptos);
-
-        // Log or process the data
-        // console.log({result});
-        
-      if(result.success){
-        return result.data;
-      }
-
-      } catch (error) {
-        // Handle any errors that occur during the fetch
-        console.error('Error fetching data:', error);
-      }
-
-      return [];
-
+    result: CryptoPrice,
+    loading: boolean,
+    fetchCryptos: ()=> Promise<void>
+    fetchData: (pair:Pair)=>Promise<void>
 }
 
-export const useCryptoStore = create<CryptoStore>(function(){
+
+export const useCryptoStore = create<CryptoStore>()(devtools((function(set){
     return { 
         cryptocurrencies:[],
+        result: emptyPrice, //instead of defining all properties to empty or so
+        loading: false,
         fetchCryptos: async function() {
             console.log("desde fetch cryptos");
+            set(()=>({loading: true}));
             const cryptocurrencies = await getCryptos();
-            console.log(cryptocurrencies)
-            return cryptocurrencies;
-    }}});
+            set(()=>({
+                cryptocurrencies,
+                loading: false
+            }));
+        },
+        fetchData:async function(pair:Pair){
+            console.log(pair);
+            set(()=>({loading: true}));
+            const result = await fetchCurrentCryptoPrice(pair);
+            set(()=>({result,  loading: false}));
+        }
+}})));
